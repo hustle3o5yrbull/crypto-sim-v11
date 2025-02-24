@@ -4,19 +4,23 @@ import random
 import os
 
 app = Flask(__name__)
-
-wallet = {'usd': 500.0, 'pepe': 0.0, 'popcat': 0.0, 'turbo': 0.0}
+wallet = {'usd': 500.0, 'pepe': 0.0, 'popcat': 0.0, 'turbo': 0.0}  # Default
 trades = []
 leaderboard = []
 hit_counts = {'views': 0, 'plays': 0}
 
-# Load existing data if files exist
+# Load existing data if files exist, but reset wallet anyway
 try:
     with open('wallet.json', 'r') as f:
-        wallet = json.load(f)
+        json.load(f)  # Load but don’t use—keeps file fresh
 except FileNotFoundError:
     with open('wallet.json', 'w') as f:
         json.dump(wallet, f)
+# Force reset wallet on every start
+wallet = {'usd': 500.0, 'pepe': 0.0, 'popcat': 0.0, 'turbo': 0.0}
+with open('wallet.json', 'w') as f:
+    json.dump(wallet, f)
+
 try:
     with open('trades.json', 'r') as f:
         trades = json.load(f)
