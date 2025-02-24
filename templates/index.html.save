@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Crypto Simulator</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin-top: 50px;
+      background-color: #1a1a1a;
+      color: #ffffff;
+    }
+    h1 { color: #ffffff; }
+    .price { font-size: 24px; color: #00b7ff; }
+    .wallet { font-size: 20px; margin: 20px 0; }
+    input, button, select {
+      padding: 10px;
+      margin: 5px;
+      font-size: 16px;
+      background-color: #333;
+      color: #fff;
+      border: 1px solid #555;
+    }
+    button {
+      background-color: #4CAF50;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover { background-color: #45a049; }
+    .sell { background-color: #f44336; }
+    .sell:hover { background-color: #da190b; }
+    .tip { color: #999; font-style: italic; }
+    canvas {
+      width: 800px !important;
+      height: 400px !important;
+      margin: 20px auto;
+      background-color: #252525;
+      padding: 10px;
+      border-radius: 5px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    }
+    .chart-buttons button, .scale-toggle button {
+      background-color: #555;
+      margin: 5px;
+    }
+    .chart-buttons button.active, .scale-toggle button.active {
+      background-color: #00b7ff;
+    }
+    .zoom-slider, .time-slider {
+      width: 300px;
+      margin: 10px auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>Crypto Simulator</h1>
+  <p class="price">Bitcoin Price: $<span id="btc_price">{{ prices.btc }}</span></p>
+  <p class="price">Ethereum Price: $<span id="eth_price">{{ prices.eth }}</span></p>
+  <p class="price">Dogecoin Price: $<span id="doge_price">{{ prices.doge }}</span></p>
+  <p class="price">Solana Price: $<span id="sol_price">{{ prices.sol }}</span></p>
+  <p class="wallet">Your Wallet: ${{ wallet.usd }} | BTC: {{ wallet.btc }} | ETH: {{ wallet.eth }} | DOGE: {{ wallet.doge }} | SOL: {{ wallet.sol }}</p>
+  
+  <form method="POST" action="/trade">
+    <label>Amount:</label>
+    <input type="number" name="amount" step="0.0001" placeholder="e.g., 0.01" required>
+    <select name="coin">
+      <option value="btc">Bitcoin (BTC)</option>
+      <option value="eth">Ethereum (ETH)</option>
+      <option value="doge">Dogecoin (DOGE)</option>
+      <option value="sol">Solana (SOL)</option>
+    </select>
+    <br><br>
+    <button name="action" value="buy">Buy</button>
+    <button class="sell" name="action" value="sell">Sell</button>
+  </form>
+  
+  <p class="tip"><strong>Tip:</strong> Choose a coin, enter an amount, and trade!</p>
+  
+  <div class="chart-buttons">
+    <button onclick="showCoin('btc')" id="btn-btc">BTC</button>
+    <button onclick="showCoin('eth')" id="btn-eth">ETH</button>
+    <button onclick="showCoin('doge')" id="btn-doge">DOGE</button>
+    <button onclick="showCoin('sol')" id="btn-sol">SOL</button>
+  </div>
+  
+  <div class="scale-toggle">
+    <button onclick="toggleScale('linear')" id="btn-linear" class="active">Linear</button>
+    <button onclick="toggleScale('logarithmic')" id="btn-log">Log</button>
+  </div>
+  
+  <canvas id="priceChart"></canvas>
+  <div class="zoom-slider">
+    <label for="zoom">Zoom:</label>
+    <input type="range" id="zoom" min="10" max="200" value="50" oninput="updateZoom()">
+  </div>
+  <div class="time-slider">
+    <label for="timeRange">Time Range:</label>
+    <input type="range" id="timeRange" min="5" max="100" value="20" oninput="updateTimeRange()">
+  </div><script>
+  let btcPrices = [];
+  let ethPrices = [];
+  let dogePrices = [];
+  let solPrices = [];
+  let times = [];
+  let currentCoin = 'btc';
+  let currentScale = 'linear';
+
+  const datasets = {
+    btc: { label: 'Bitcoin (BTC)', data: btcPrices, borderColor: '#ff9900', borderWidth: 2, pointRadius: 0, tension: 0.1, fill: false },
+    eth: { label: 'Ethereum (ETH)', data: ethPrices, borderColor: '#3c3c3d', borderWidth: 2, pointRadius: 0, tension: 0.1, fill: false },
+    doge: { label: 'Dogecoin (DOGE)', data: dogePrices, borderColor: '#c0c0c0', borderWidth: 2, pointRadius: 0, tension: 0.1, fill: false },
+    sol: { label: 'Solana (SOL)', data: solPrices, borderColor: '#00ffa3', borderWidth: 2, pointRadius: 0, tension: 0.1, fill: false }
+  };
+
+  const ctx = document.getElementById('priceChart').getContext('2d');
+  const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: times,
+      datasets: [datasets.btc]
+    },
+    options: {
+      scales: {
+        y: { 
+          type: 'linear',
+          beginAtZero: false,
+          grid: { color: '#444' },
+          ticks: { 
+            color: '#ccc',
+            callback: function(value) { return '$' + value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }); }
+          }
+        },
+        x: { 
+          grid: { color: '#444' },
+          ticks: { color: '#ccc', maxTicksLimit: 10 }
+        }
+      },
+      plugins: {
+        legend: { labels: { color: '#fff' } },
+        tooltip: { enabled: true }
+      }
+    }
+  });
+
+  function updatePrices() {
+    fetch('/get_prices')
+      .then(response => {
+        if (!response.ok) throw new Error('Fetch failed: ' + response.status);
+        return response.json();
+      })
+      .then(data => {
+        document.getElementById('btc_price').innerText = data.btc.toLocaleString(undefined, { minimumFractionDigits: 2 });
+        document.getElementById('eth_price').innerText = data.eth.toLocaleString(undefined, { minimumFractionDigits: 2 });
+        document.getElementById('doge_price').innerText = data.doge.toLocaleString(undefined, { minimumFractionDigits: 4 });
+        document.getElementById('sol_price').innerText = data.sol.toLocaleString(undefined, { minimumFractionDigits: 2 });
+
+        const now = new Date().toLocaleTimeString();
+        times.push(now);
+        btcPrices.push(data.btc);
+        ethPrices.push(data.eth);
+        dogePrices.push(data.doge);
+        solPrices.push(data.sol);
+
+        console.log('Latest prices:', { btc: btcPrices.slice(-1), eth: ethPrices.slice(-1), doge: dogePrices.slice(-1), sol: solPrices.slice(-1) });
+
+        chart.data.labels = times; // Force sync
+        chart.data.datasets[0].data = datasets[currentCoin].data; // Ensure current coin’s data
+        updateChartRange();
+        chart.update('active');
+        console.log('Chart data:', chart.data.datasets[0].data.slice(-5));
+      })
+      .catch(error => console.error('Error fetching prices:', error));
+  }
+
+  function showCoin(coin) {
+    currentCoin = coin;
+    chart.data.datasets = [datasets[coin]];
+    console.log(`Switched to ${coin}, data:`, datasets[coin].data.slice(-5));
+    chart.data.labels = times; // Sync labels
+    chart.data.datasets[0].data = datasets[coin].data; // Sync data
+    updateChartRange();
+    chart.update('active');
+    console.log('After switch:', chart.data.datasets[0].data.slice(-5));
+
+    document.querySelectorAll('.chart-buttons button').forEach(btn => btn.classList.remove('active'));
+    document.getElementById(`btn-${coin}`).classList.add('active');
+  }
+
+  function toggleScale(scale) {
+    currentScale = scale;
+    chart.options.scales.y.type = scale;
+    updateChartRange();
+    chart.update('active');
+
+    document.querySelectorAll('.scale-toggle button').forEach(btn => btn.classList.remove('active'));
+    document.getElementById(`btn-${scale === 'linear' ? 'linear' : 'log'}`).classList.add('active');
+  }
+
+  function updateChartRange() {
+    const range = getTimeRange();
+    const start = Math.max(0, times.length - range);
+    const prices = datasets[currentCoin].data.slice(start).filter(p => p !== undefined && p !== null);
+
+    if (prices.length > 0) {
+      if (currentScale === 'linear') {
+        const minPrice = Math.min(...prices);
+        const maxPrice = Math.max(...prices);
+        const priceRange = maxPrice - minPrice || maxPrice * 0.1;
+        const zoomLevel = document.getElementById('zoom').value / 100;
+        const padding = priceRange * zoomLevel;
+
+        chart.options.scales.y.min = Math.max(0, minPrice - padding);
+        chart.options.scales.y.max = maxPrice + padding;
+        console.log(`${currentCoin} range: ${chart.options.scales.y.min} to ${chart.options.scales.y.max}`);
+      } else {
+        const allPrices = [
+          ...btcPrices.slice(start),
+          ...ethPrices.slice(start),
+          ...dogePrices.slice(start),
+          ...solPrices.slice(start)
+        ].filter(p => p > 0);
+        if (allPrices.length > 0) {
+          chart.options.scales.y.min = Math.min(...allPrices) * 0.9;
+          chart.options.scales.y.max = Math.max(...allPrices) * 1.1;
+        }
+      }
+    }
+  }
+
+  function updateZoom() {
+    updateChartRange();
+    chart.update('active');
+  }
+
+  function getTimeRange() {
+    return Math.max(1, Math.floor(document.getElementById('timeRange').value));
+  }
+
+  function updateTimeRange() {
+    const range = getTimeRange();
+    const start = Math.max(0, times.length - range);
+    chart.data.labels = times.slice(start);
+    chart.data.datasets[0].data = datasets[currentCoin].data.slice(start);
+    updateChartRange();
+    chart.update('active');
+  }
+
+  document.getElementById('btn-btc').classList.add('active');
+  setInterval(updatePrices, 5000);
+  updatePrices();
+</script>
+
+</body>
+</html>

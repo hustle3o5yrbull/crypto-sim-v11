@@ -1,0 +1,30 @@
+        if wallet['usd'] >= cost:
+            wallet['usd'] -= cost
+            wallet[coin] += amount
+        else:
+            print(f"Trade failed: Insufficient USD for {data}")
+            return jsonify({'error': 'Insufficient USD'}), 400
+    elif action == 'sell':
+        if wallet[coin] >= amount:
+            wallet['usd'] += cost
+            wallet[coin] -= amount
+        else:
+            print(f"Trade failed: Insufficient {coin.upper()} for {data}")
+            return jsonify({'error': f'Insufficient {coin.upper()}'}), 400
+
+    trades.append(data)
+    with open('trades.json', 'w') as f:
+        json.dump(trades, f)
+    with open('wallet.json', 'w') as f:
+        json.dump(wallet, f)
+
+    print(f"Trade executed: {data}")
+    print(f"Updated wallet: {wallet}")
+    return jsonify({'wallet': wallet})
+
+@app.route('/trades', methods=['GET'])
+def get_trades():
+    return jsonify({'trades': trades})
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)

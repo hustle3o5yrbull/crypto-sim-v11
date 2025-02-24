@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Crypto Simulator v1.1</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      text-align: center;
+      margin: 0;
+      background: #000000;
+      color: #ffffff;
+      min-height: 100vh;
+      position: relative;
+    }
+    h1 {
+      color: #1A3C34;
+      text-shadow: 0 0 10px #1A3C34;
+      font-size: 36px;
+      margin: 20px 0;
+    }
+    .info-container {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin: 10px 0;
+    }
+    .price, .wallet, .pnl, .timer {
+      font-size: 18px;
+      padding: 5px 10px;
+      background: #333333;
+      border-radius: 5px;
+      transition: background-color 0.3s;
+    }
+    .price { color: #00ffff; text-shadow: 0 0 5px #00ffff; }
+    .wallet { color: #ffffff; }
+    .wallet.green { background: #00ff00; color: #000000; }
+    .wallet.red { background: #ff0000; }
+    .pnl { color: #ff00ff; text-shadow: 0 0 5px #ff00ff; }
+    .timer { color: #ffff00; text-shadow: 0 0 5px #ffff00; }
+    .trade-container {
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+      margin: 20px 0;
+    }
+    .coin-form {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    input, button {
+      padding: 8px;
+      margin: 0;
+      font-size: 16px;
+      background: #333333;
+      color: #ffffff;
+      border: 2px solid #1A3C34;
+      border-radius: 5px;
+    }
+    button {
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    button.buy { background: #333333; }
+    button.buy:hover { background: #00ffff; color: #000000; box-shadow: 0 0 10px #00ffff; }
+    button.buy:disabled { background: #555555; cursor: not-allowed; }
+    button.sell { background: #333333; }
+    button.sell:hover { background: #ff00ff; color: #000000; box-shadow: 0 0 10px #ff00ff; }
+    button.sell:disabled { background: #555555; cursor: not-allowed; }
+    button.reset { background: #ff5555; margin: 10px 0; }
+    button.reset:hover { background: #ffaaaa; color: #000000; box-shadow: 0 0 10px #ff5555; }
+    .tip {
+      color: #00ffff;
+      font-style: italic;
+      margin: 10px 0;
+    }
+    .charts-container {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin: 20px 0;
+    }
+    canvas {
+      width: 400px !important;
+      height: 300px !important;
+      background: #000000;
+      border: 2px solid #1A3C34;
+      border-radius: 5px;
+      box-shadow: 0 0 20px #1A3C34;
+    }
+    .pnl-history {
+      margin: 20px 0;
+      font-size: 16px;
+      color: #ff00ff;
+      text-shadow: 0 0 5px #ff00ff;
+    }
+    #endGameCountdown {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 60px;
+      color: #ff5555;
+      text-shadow: 0 0 10px #ff5555;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 20px;
+      border-radius: 10px;
+      display: none;
+      pointer-events: none;
+      z-index: 1000;
+    }
+    .handles {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      font-size: 14px;
+      color: #00ffff;
+      text-shadow: 0 0 5px #00ffff;
+    }
+  </style>
+</head>
+<body>
+  <h1>Crypto Simulator v1.1</h1>
+  <div class="info-container">
+    <p class="price">Price: $<span id="current_price">0</span></p>
+    <p class="wallet" id="walletDisplay">Wallet: $<span id="usd">{{ wallet.usd }}</span> | PEPE: <span id="pepe_qty">{{ wallet.pepe }}</span> | POPCAT: <span id="popcat_qty">{{ wallet.popcat }}</span> | TURBO: <span id="turbo_qty">{{ wallet.turbo }}</span></p>
+    <p class="pnl">PnL: $<span id="pnl">0</span></p>
+    <p class="timer">Time Left: <span id="timer">2:00</span></p>
+  </div>
+  
+  <div class="trade-container">
+    <div class="coin-form">
+      <label>PEPE:</label>
+      <input type="number" id="pepe_amount" step="1" value="100" required>
+      <button class="buy" id="pepe_buy" onclick="submitTrade('buy', 'pepe')">Buy</button>
+      <button class="sell" id="pepe_sell" onclick="submitTrade('sell', 'pepe')">Sell</button>
+    </div>
+    <div class="coin-form">
+      <label>POPCAT:</label>
+      <input type="number" id="popcat_amount" step="1" value="100" required>
+      <button class="buy" id="popcat_buy" onclick="submitTrade('buy', 'popcat')">Buy</button>
+      <button class="sell" id="popcat_sell" onclick="submitTrade('sell', 'popcat')">Sell</button>
+    </div>
+    <div class="coin-form">
+      <label>TURBO:</label>
+      <input type="number" id="turbo_amount" step="1" value="100" required>
+      <button class="buy" id="turbo_buy" onclick="submitTrade('buy', 'turbo')">Buy</button>
+      <button class="sell" id="turbo_sell" onclick="submitTrade('sell', 'turbo')">Sell</button>
+    </div>
+  </div>
+  
+  <button class="reset" onclick="resetWallet()">Reset Game</button>
+  
+  <p class="tip"><strong>Tip:</strong> Maximize your PnL in 2 minutes—trade PEPE, POPCAT, or TURBO!</p>
+  
+  <div class="charts-container" id="chartsContainer">
+    <canvas id="pepeChart"></canvas>
+    <canvas id="popcatChart"></canvas>
+    <canvas id="turboChart"></canvas>
+  </div>
+
+  <div class="pnl-history" id="pnl_history">Your Top PnL Scores: <span id="pnl_scores"></span><br>Leaderboard Top Scorer: <span id="top_scorer"></span></div>
+
+  <div id="endGameCountdown"></div>
+  <div class="handles">Created by: <a href="https://x.com/hustle3o5" target="_blank" style="color: #00ffff; text-decoration: none;">@hustle3o5</a> & <a href="https://x.com/YRBull" target="_blank" style="color: #00ffff; text-decoration: none;">@YRBull</a> | Views: <span id="view_count">{{ hit_counts.views }}</span> | Plays: <span id="play_count">{{ hit_counts.plays }}</span></div>
+
+  <script>
+    // Core variables
+    const initialWallet = {
+      usd: {{ wallet.usd }},
+      pepe: {{ wallet.pepe }},
+      popcat: {{ wallet.popcat }},
+      turbo: {{ wallet.turbo }}
+    };
+    console.log("Initial wallet from server:", initialWallet);
+
+    let prices = {
+      pepe: parseFloat((Math.random() * 0.0045 + 0.0005).toFixed(6)), // $0.0005-$0.005
+      popcat: parseFloat((Math.random() * 0.4 + 0.05).toFixed(6)),    // $0.05-$0.45
+      turbo: parseFloat((Math.random() * 0.045 + 0.005).toFixed(6))  // $0.005-$0.05
+    };
+    console.log("Randomized starting prices:", prices);
+
+    let pricesData = {pepe: [], popcat: [], turbo: []};
+    let times = {pepe: [], popcat: [], turbo: []};
+    let trades = [];
+    let playerPnLHistory = [];
+
+    const chartColors = {
+      pepe: '#00ff00',
+      popcat: '#ff00ff',
+      turbo: '#ffff00'
+    };
+
+    // Pre-populate times and pricesData
+    const staticTimes = Array.from({length: 50}, (_, i) => {
+      const now = new Date();
+      now.setSeconds(now.getSeconds() - (49 - i));
+      return now.toLocaleTimeString();
+    });
+    times.pepe = [...staticTimes];
+    times.popcat = [...staticTimes];
+    times.turbo = [...staticTimes];
+    pricesData.pepe = Array(50).fill(parseFloat(prices.pepe));
+    pricesData.popcat = Array(50).fill(parseFloat(prices.popcat));
+    pricesData.turbo = Array(50).fill(parseFloat(prices.turbo));
+
+    // Charts
+    const pepeChart = new Chart(document.getElementById('pepeChart').getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: staticTimes,
+        datasets: [
+          { label: 'PEPE', data: pricesData.pepe, borderColor: chartColors.pepe, borderWidth: 2, pointRadius: 0, tension: 0, fill: false },
+          { label: 'Trades', data: [], borderColor: 'rgba(0, 0, 0, 0)', backgroundColor: [], pointRadius: 4, pointHoverRadius: 6, showLine: false }
+        ]
+      },
+      options: {
+        animation: false,
+        scales: {
+          y: { type: 'linear', beginAtZero: false, grid: { color: '#00ffff' }, ticks: { color: '#ffffff', callback: value => '$' + value.toFixed(6) } },
+          x: { grid: { color: '#00ffff' }, ticks: { color: '#ffffff', maxTicksLimit: 5 } }
+        },
+        elements: { line: { tension: 0 }, point: { radius: 0 } },
+        plugins: { legend: { labels: { color: '#ffffff' } }, tooltip: { enabled: true } }
+      }
+    });
+
+    const popcatChart = new Chart(document.getElementById('popcatChart').getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: staticTimes,
+        datasets: [
+          { label: 'POPCAT', data: pricesData.popcat, borderColor: chartColors.popcat, borderWidth: 2, pointRadius: 0, tension: 0, fill: false },
+          { label: 'Trades', data: [], borderColor: 'rgba(0, 0, 0, 0)', backgroundColor: [], pointRadius: 4, pointHoverRadius: 6, showLine: false }
+        ]
+      },
+      options: {
+        animation: false,
+        scales: {
+          y: { type: 'linear', beginAtZero: false, grid: { color: '#00ffff' }, ticks: { color: '#ffffff', callback: value => '$' + value.toFixed(6) } },
+          x: { grid: { color: '#00ffff' }, ticks: { color: '#ffffff', maxTicksLimit: 5 } }
+        },
+        elements: { line: { tension: 0 }, point: { radius: 0 } },
+        plugins: { legend: { labels: { color: '#ffffff' } }, tooltip: { enabled: true } }
+      }
+    });
+
+    const turboChart = new Chart(document.getElementById('turboChart').getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: staticTimes,
+        datasets: [
+          { label: 'TURBO', data: pricesData.turbo, borderColor: chartColors.turbo, borderWidth: 2, pointRadius: 0, tension: 0, fill: false },
+          { label: 'Trades', data: [], borderColor: 'rgba(0, 0, 0, 0)', backgroundColor: [], pointRadius: 4, pointHoverRadius: 6, showLine: false }
+        ]
+      },
+      options: {
+        animation: false,
+        scales: {
+          y: { type: 'linear', beginAtZero: false, grid: { color: '#00ffff' }, ticks: { color: '#ffffff', callback: value => '$' + value.toFixed(6) } },
+          x: { grid: { color: '#00ffff' }, ticks: { color: '#ffffff', maxTicksLimit: 5 } }
+        },
+        elements: { line: { tension: 0 }, point: { radius: 0 } },
+        plugins: { legend: { labels: { color: '#ffffff' } }, tooltip: { enabled: true } }
+      }
+    });
+
+    const charts = { pepe: pepeChart, popcat: popcatChart, turbo: turboChart };
+
+    // Functions
+    function updatePnL() {
+      if (timerRunning) {
+        const walletValue = prices.pepe * (parseFloat(document.getElementById('pepe_qty').innerText.replace(/,/g, '')) || 0) +
+                           prices.popcat * (parseFloat(document.getElementById('popcat_qty').innerText.replace(/,/g, '')) || 0) +
+                           prices.turbo * (parseFloat(document.getElementById('turbo_qty').innerText.replace(/,/g, '')) || 0);
+        const usd = parseFloat(document.getElementById('usd').innerText.replace(/,/g, '')) || 0;
+        const totalValue = usd + walletValue;
+        const initialValue = initialWallet.usd + 
+                             (initialWallet.pepe * prices.pepe || 0) +
+                             (initialWallet.popcat * prices.popcat || 0) +
+                             (initialWallet.turbo * prices.turbo || 0);
+        const pnl = totalValue - initialValue;
+        document.getElementById('pnl').innerText = pnl.toLocaleString(undefined, { minimumFractionDigits: 2 });
+        console.log("PnL updated:", {walletValue, usd, totalValue, initialValue, pnl});
+      }
+    }
+
+    function updateCharts() {
+      const coins = ['pepe', 'popcat', 'turbo'];
+      coins.forEach(coin => {
+        const currentPrices = pricesData[coin];
+        const currentPrice = prices[coin];
+
+        const tradeData = trades
+          .filter(t => t.coin === coin)
+          .map(t => ({
+            x: t.time,
+            y: parseFloat(t.price),
+            action: t.action
+          }))
+          .filter(t => staticTimes.includes(t.x));
+
+        charts[coin].data.datasets[0].data = currentPrices;
+        charts[coin].data.datasets[1].data = tradeData;
+        charts[coin].data.datasets[1].backgroundColor = tradeData.map(t => t.action === 'buy' ? '#00ff00' : '#ff0000');
+
+        if (currentPrices.length > 0) {
+          const minPrice = Math.min(...currentPrices);
+          const maxPrice = Math.max(...currentPrices);
+          const priceRange = (maxPrice - minPrice) || currentPrice * 2 || 0.01;
+          const padding = priceRange * 3;
+          charts[coin].options.scales.y.min = Math.max(0, currentPrice - padding);
+          charts[coin].options.scales.y.max = currentPrice + padding;
+        }
+
+        charts[coin].update('none');
+      });
+    }
+
+    function simulatePrices() {
+      setInterval(() => {
+        if (timerRunning) {
+          const coins = ['pepe', 'popcat', 'turbo'];
+          coins.forEach(coin => {
+            let swingRange;
+            const rand = Math.random();
+            if (rand < 0.5) {
+              swingRange = Math.random() * 0.15 + 0.05;
+            } else if (rand < 0.7) {
+              swingRange = Math.random() * 0.1 - 0.05;
+            } else if (rand < 0.85) {
+              swingRange = Math.random() * 1 + 0.5;
+            } else if (rand < 0.95) {
+              swingRange = -(Math.random() * 0.2 + 0.1);
+            } else {
+              swingRange = -0.8;
+            }
+
+            const change = swingRange * prices[coin];
+            const price = Math.max(prices[coin] * 0.2, prices[coin] + change);
+            prices[coin] = Math.min(1, price);
+            
+            pricesData[coin].shift();
+            pricesData[coin].push(prices[coin]);
+            charts[coin].data.datasets[0].data = pricesData[coin];
+            console.log(`Simulated: ${coin.toUpperCase()} $${prices[coin]} (${(swingRange * 100).toFixed(2)}%)`);
+          });
+
+          for (const coin in charts) {
+            const tradeData = trades
+              .filter(t => t.coin === coin)
+              .map(t => ({
+                x: t.time,
+                y: parseFloat(t.price),
+                action: t.action
+              }))
+              .filter(t => staticTimes.includes(t.x));
+
+            charts[coin].data.datasets[1].data = tradeData;
+            charts[coin].data.datasets[1].backgroundColor = tradeData.map(t => t.action === 'buy' ? '#00ff00' : '#ff0000');
+
+            const currentPrices = pricesData[coin];
+            const currentPrice = prices[coin];
+            if (currentPrices.length > 0) {
+              const minPrice = Math.min(...currentPrices);
+              const maxPrice = Math.max(...currentPrices);
+              const priceRange = (maxPrice - minPrice) || currentPrice * 2 || 0.01;
+              const padding = priceRange * 3;
+              charts[coin].options.scales.y.min = Math.max(0, currentPrice - padding);
+              charts[coin].options.scales.y.max = currentPrice + padding;
+            }
+
+            charts[coin].update('none');
+          }
+
+          document.getElementById('current_price').innerText = prices['pepe'].toLocaleString(undefined, { minimumFractionDigits: 6 });
+          updatePnL();
+        }
+      }, 1000);
+    }
+
+    let timeLeft = 120;
+    let timerRunning = false;
+    function updateTimer() {
+      if (timerRunning) {
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        document.getElementById('timer').innerText = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+        const countdownElement = document.getElementById('endGameCountdown');
+        if (timeLeft <= 5 && timeLeft > 0) {
+          countdownElement.style.display = 'block';
+          countdownElement.innerText = timeLeft;
+        } else {
+          countdownElement.style.display = 'none';
+        }
+        timeLeft--;
+        if (timeLeft < 0) {
+          timerRunning = false;
+          document.getElementById('timer').innerText = "Time's Up!";
+          countdownElement.style.display = 'none';
+          document.querySelectorAll('.buy, .sell').forEach(button => {
+            button.disabled = true;
+          });
+          const finalPnL = parseFloat(document.getElementById('pnl').innerText.replace(/,/g, '')) || 0;
+          playerPnLHistory.push(finalPnL);
+          playerPnLHistory.sort((a, b) => b - a);
+          playerPnLHistory = playerPnLHistory.slice(0, 5);
+          document.getElementById('pnl_scores').innerText = playerPnLHistory.map(score => score.toFixed(2)).join(', ');
+          fetch('/submit_pnl', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nickname: nickname, pnl: finalPnL })
+          })
+          .then(() => fetch('/leaderboard'))
+          .then(response => response.json())
+          .then(data => {
+            const leaderboardText = `Game Over, ${nickname}! Your Final PnL: $${finalPnL.toFixed(2)}\n\nLeaderboard (Top 5):\n${data.leaderboard.map((entry, i) => `${i + 1}. ${entry.nickname}: $${entry.pnl.toFixed(2)}`).join('\n')}`;
+            alert(leaderboardText); // Leaderboard popup
+            if (data.leaderboard.length > 0) {
+              const topScorer = data.leaderboard[0];
+              document.getElementById('top_scorer').innerText = `${topScorer.nickname}: $${topScorer.pnl.toFixed(2)}`;
+            } else {
+              document.getElementById('top_scorer').innerText = "No scores yet!";
+            }
+          })
+          .catch(error => console.error('Error submitting PnL:', error));
+        } else {
+          setTimeout(updateTimer, 1000);
+        }
+      }
+    }
+
+    function submitTrade(action, coin) {
+      if (!timerRunning) {
+        alert("Time's up! No more trading allowed.");
+        return;
+      }
+
+      const amountInput = document.getElementById(`${coin}_amount`);
+      const amount = parseFloat(amountInput.value);
+      if (!amount || amount <= 0) {
+        alert(`Please enter a valid ${coin.toUpperCase()} amount`);
+        return;
+      }
+
+      const currentTime = new Date().toLocaleTimeString();
+      const tradeData = {
+        action: action,
+        coin: coin,
+        amount: amount,
+        price: prices[coin],
+        time: currentTime
+      };
+
+      console.log(`Submitting ${coin.toUpperCase()} trade:`, tradeData);
+
+      fetch('/trade', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(tradeData)
+      })
+      .then(response => {
+        if (!response.ok) return response.json().then(err => { throw new Error(err.error); });
+        return response.json();
+      })
+      .then(data => {
+        const walletDisplay = document.getElementById('walletDisplay');
+        const oldUsd = parseFloat(document.getElementById('usd').innerText.replace(/,/g, '')) || 0;
+        const newUsd = data.wallet.usd;
+        document.getElementById('usd').innerText = newUsd.toLocaleString(undefined, { minimumFractionDigits: 2 });
+        document.getElementById('pepe_qty').innerText = data.wallet.pepe.toLocaleString(undefined, { minimumFractionDigits: 0 });
+        document.getElementById('popcat_qty').innerText = data.wallet.popcat.toLocaleString(undefined, { minimumFractionDigits: 0 });
+        document.getElementById('turbo_qty').innerText = data.wallet.turbo.toLocaleString(undefined, { minimumFractionDigits: 0 });
+        trades = data.trades;
+        console.log(`${coin.toUpperCase()} trade response:`, data);
+        document.getElementById('current_price').innerText = prices[coin].toLocaleString(undefined, { minimumFractionDigits: 6 });
+        if (newUsd > oldUsd) {
+          walletDisplay.classList.add('green');
+          setTimeout(() => walletDisplay.classList.remove('green'), 500);
+        } else if (newUsd < oldUsd) {
+          walletDisplay.classList.add('red');
+          setTimeout(() => walletDisplay.classList.remove('red'), 500);
+        }
+        updateCharts();
+        updatePnL();
+      })
+      .catch(error => {
+        console.error(`Error submitting ${coin.toUpperCase()} trade:`, error);
+        if (error.message.includes('Insufficient') && action === 'sell') {
+          alert("You don’t have any tokens left!");
+        } else {
+          alert(error.message);
+        }
+      });
+    }
+
+    function resetWallet() {
+      fetch('/reset', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        document.getElementById('usd').innerText = data.wallet.usd.toLocaleString(undefined, { minimumFractionDigits: 2 });
+        document.getElementById('pepe_qty').innerText = data.wallet.pepe.toLocaleString(undefined, { minimumFractionDigits: 0 });
+        document.getElementById('popcat_qty').innerText = data.wallet.popcat.toLocaleString(undefined, { minimumFractionDigits: 0 });
+        document.getElementById('turbo_qty').innerText = data.wallet.turbo.toLocaleString(undefined, { minimumFractionDigits: 0 });
+        trades = data.trades;
+        prices = {
+          pepe: parseFloat((Math.random() * 0.0045 + 0.0005).toFixed(6)),
+          popcat: parseFloat((Math.random() * 0.4 + 0.05).toFixed(6)),
+          turbo: parseFloat((Math.random() * 0.045 + 0.005).toFixed(6))
+        };
+        pricesData.pepe = Array(50).fill(prices.pepe);
+        pricesData.popcat = Array(50).fill(prices.popcat);
+        pricesData.turbo = Array(50).fill(prices.turbo);
+        console.log("Wallet reset with new prices:", prices);
+        timeLeft = 120;
+        timerRunning = true;
+        document.querySelectorAll('.buy, .sell').forEach(button => {
+          button.disabled = false;
+        });
+        updateTimer();
+        updatePnL();
+        updateCharts();
+        // Update hit counter display after reset
+        fetch('/')
+          .then(response => response.text())
+          .then(() => {
+            document.getElementById('play_count').innerText = {{ hit_counts.plays }};
+          });
+      })
+      .catch(error => console.error('Error resetting wallet:', error));
+    }
+
+    // Nickname and startup
+    const nickname = prompt("Enter your nickname:", "Player") || "Player";
+    alert(`Welcome to Crypto Simulator v1.1, ${nickname}!\n\nHow to Play:\n- Start with $500 USD.\n- Buy and sell PEPE, POPCAT, or TURBO within 2 minutes.\n- Aim for the highest Profit & Loss (PnL) by trading smart.\n- Click 'Reset Game' to start over.\n\nTip: Buy the dip! Sell the top!`);
+
+    // Start game
+    fetch('/trades')
+      .then(response => response.json())
+      .then(data => {
+        trades = data.trades;
+        console.log("Loaded initial trades:", trades);
+        fetch('/leaderboard')
+          .then(response => response.json())
+          .then(data => {
+            if (data.leaderboard.length > 0) {
+              const topScorer = data.leaderboard[0];
+              document.getElementById('top_scorer').innerText = `${topScorer.nickname}: $${topScorer.pnl.toFixed(2)}`;
+            } else {
+              document.getElementById('top_scorer').innerText = "No scores yet!";
+            }
+            updateCharts();
+            updatePnL();
+            timerRunning = true;
+            updateTimer();
+            simulatePrices();
+          })
+          .catch(error => console.error('Error fetching initial leaderboard:', error));
+      })
+      .catch(error => {
+        console.error("Error fetching trades:", error);
+        updateCharts();
+        updatePnL();
+        timerRunning = true;
+        updateTimer();
+        simulatePrices();
+      });
+  </script>
+</body>
+</html>
