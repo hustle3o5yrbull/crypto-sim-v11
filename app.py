@@ -17,13 +17,14 @@ prices = {
     'turbo': round(random.uniform(0.01, 2.0), 6)
 }
 
+# Load existing data if files exist, then override wallet
 try:
     with open('wallet.json', 'r') as f:
         json.load(f)
 except FileNotFoundError:
     with open('wallet.json', 'w') as f:
         json.dump(wallet, f)
-wallet = {'usd': 500.0, 'pepe': 0.0, 'popcat': 0.0, 'turbo': 0.0}
+wallet = {'usd': 500.0, 'pepe': 0.0, 'popcat': 0.0, 'turbo': 0.0}  # Force reset
 with open('wallet.json', 'w') as f:
     json.dump(wallet, f)
 
@@ -58,7 +59,7 @@ except FileNotFoundError:
 @app.route('/')
 def home():
     global hit_counts
-    hit_counts['views'] = hit_counts.get('views', 0) + 1
+    hit_counts['views'] = hit_counts.get('views', 0) + 1  # Increment views
     with open('hit_counts.json', 'w') as f:
         json.dump(hit_counts, f)
     print(f"Serving home page with wallet: {wallet} trades: {trades} views: {hit_counts['views']} plays: {hit_counts['plays']}")
@@ -88,13 +89,13 @@ def trade():
         else:
             print(f"Trade failed: Insufficient {coin.upper()} for {data}")
             return jsonify({'error': f'Insufficient {coin.upper()}'}), 400
-
+    
     trades.append(data)
     with open('trades.json', 'w') as f:
         json.dump(trades, f)
     with open('wallet.json', 'w') as f:
         json.dump(wallet, f)
-
+    
     print(f"Trade executed: {data}")
     print(f"Updated wallet: {wallet}")
     return jsonify({'wallet': wallet, 'trades': trades})
@@ -125,7 +126,7 @@ def reset():
     global wallet, trades, hit_counts, prices
     wallet = {'usd': 500.0, 'pepe': 0.0, 'popcat': 0.0, 'turbo': 0.0}
     trades = []
-    hit_counts['plays'] = hit_counts.get('plays', 0) + 1
+    hit_counts['plays'] = hit_counts.get('plays', 0) + 1  # Increment plays
     prices = {
         'pepe': round(random.uniform(0.01, 2.0), 6),
         'popcat': round(random.uniform(0.01, 2.0), 6),
